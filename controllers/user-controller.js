@@ -2,31 +2,27 @@ const userServices = require("../services/user-service");
 const { validationResult } = require("express-validator");
 const ApiError = require("../exceptions/api-error");
 const userModel = require("../models/user-model");
-// const fileController = require("./file-controller");
+
+const getCookieOptions = (isRefresh = false) => {
+  const isProd = process.env.NODE_ENV === "production";
+  return {
+    maxAge: isRefresh ? 30 * 24 * 3600 * 1000 : 15 * 60 * 1000,
+    httpOnly: isRefresh,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+  };
+};
 
 class UserController {
   async login(req, res, next) {
     try {
       const { email, password } = req.body;
       const userData = await userServices.login(email, password);
-      res.cookie("accessToken", userData.accessToken, {
-        maxAge: 15 * 60 * 1000, // 15 min
-        httpOnly: false, // allow JS to read it
-        secure: true,
-        sameSite: "strict",
-      });
-
-      res.cookie("refreshToken", userData.refreshToken, {
-        maxAge: 30 * 24 * 3600 * 1000,
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-      });
+      res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
+      res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
       res.cookie("currentUser", JSON.stringify(userData.user), {
+        ...getCookieOptions(false),
         maxAge: 30 * 24 * 3600 * 1000,
-        httpOnly: false,
-        secure: true,
-        sameSite: "strict",
       });
       return res.json(userData);
     } catch (e) {
@@ -36,17 +32,13 @@ class UserController {
   async logout(req, res, next) {
     try {
       const { refreshToken } = req.cookies;
-      const tokenData = await userServices.logout(refreshToken);
-      res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-      });
-      res.clearCookie("accessToken", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-      });
+      if (refreshToken) {
+        await userServices.logout(refreshToken);
+      }
+      res.clearCookie("refreshToken", getCookieOptions(true));
+      res.clearCookie("accessToken", getCookieOptions(false));
+      res.clearCookie("currentUser", getCookieOptions(false));
+      const tokenData = { success: true };
       return res.json(tokenData);
     } catch (e) {
       next(e);
@@ -57,36 +49,21 @@ class UserController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw next(ApiError.BadRequest("Validation error", errors.array()));
+        return next(ApiError.BadRequest("Validation error", errors.array()));
       }
       const { name, email, password, phone_number, isGit } = req.body;
-      const userData = await userServices.register(
+      const userData = await userServices.register({
         name,
         email,
         password,
         phone_number,
-        isGit
-      );
-      res.cookie("accessToken", userData.accessToken, {
-        maxAge: 15 * 60 * 1000, // 15 min
-        httpOnly: false, // allow JS to read it
-        secure: true,
-        sameSite: "strict",
+        isGit,
       });
-
-      res.cookie("refreshToken", userData.refreshToken, {
-        maxAge: 30 * 24 * 3600 * 1000,
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-      });
+      res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
+      res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
       res.cookie("currentUser", JSON.stringify(userData.user), {
-        maxAge: 30 * 24 * 3600 * 1000, // 30 days
-        httpOnly: false, // ⚠️ change this if you want to access from frontend.
-        // httpOnly: true means you CANNOT access it from JavaScript (for security reasons).
-        /// If you want to read it in frontend (e.g. document.cookie), set httpOnly: false.
-        secure: true, // only send over HTTPS
-        sameSite: "strict", // prevents CSRF
+        ...getCookieOptions(false),
+        maxAge: 30 * 24 * 3600 * 1000,
       });
       return res.json(userData);
     } catch (e) {
@@ -98,15 +75,11 @@ class UserController {
     try {
       const { refreshToken } = req.cookies;
       const userData = await userServices.refresh(refreshToken);
-      res.cookie("refreshToken", userData.refreshToken, {
-        maxAge: 30 * 24 * 3600 * 1000,
-        httpOnly: true,
-      });
+      res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
+      res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
       res.cookie("currentUser", JSON.stringify(userData.user), {
         maxAge: 30 * 24 * 3600 * 1000,
-        httpOnly: false,
-        secure: true,
-        sameSite: "strict",
+        ...getCookieOptions(false),
       });
       return res.json(userData);
     } catch (e) {
@@ -124,8 +97,6 @@ class UserController {
   }
 
   async addAvatar(req, res, next) {
-    console.log("req.user:", req.user); // should not be undefined
-    console.log("req.file:", req.file); // multer should fill this
     try {
       if (!req.file) {
         return res.status(400).json({ message: "Avatar file is required" });
@@ -133,12 +104,7 @@ class UserController {
 
       const userId = req.user.id;
       const avatarUrl = `/uploads/${req.file.filename}`;
-
-      const updatedUser = await UserModel.findByIdAndUpdate(
-        userId,
-        { avatar: avatarUrl },
-        { new: true }
-      );
+      const updatedUser = await userServices.addAvatar(userId, avatarUrl);
 
       res.json({ user: updatedUser });
     } catch (e) {

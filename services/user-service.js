@@ -1,33 +1,35 @@
 const UserModel = require("../models/user-model");
 const bcrypt = require("bcrypt");
-const uuid = require("uuid");
-const mailService = require("./mail-service");
 const tokenServices = require("./token-service");
 const UserDto = require("../dtos/user-dto");
 const ApiError = require("../exceptions/api-error");
-const PostsModel = require("../models/posts-model");
+const uuid = require("uuid");
 
 class UserService {
-  async register(name, email, password, phone_number, isGit) {
-    const candidat = await UserModel.findOne({ email });
+  async register(payload) {
+    const { name, email, password, phone_number, isGit } = payload;
+    const normalizedEmail = String(email).toLowerCase().trim();
+    if (!name || !email || !password) {
+      throw ApiError.BadRequest("Name, email and password are required!");
+    }
+    const candidat = await UserModel.findOne({ email: normalizedEmail });
     if (candidat) {
       throw ApiError.BadRequest(
         "A user with this email address already exists!"
       );
     }
-    const hashpassword = await bcrypt.hash(password, 3);
+    const hashpassword = await bcrypt.hash(password, 10);
     const activationLink = uuid.v4();
     const user = await UserModel.create({
       name,
-      email,
+      email: normalizedEmail,
       password: hashpassword,
-      phone_number,
-      isGit,
+      phone_number: phone_number || "",
+      isGit: Boolean(isGit),
       activationLink,
-      avatar:
-        "https://4kwallpapers.com/images/wallpapers/makima-chainsaw-man-minimal-art-amoled-black-background-5k-5120x2880-8861.png",
+      joinedAt: new Date(),
     });
-    // await mailService.sendMailActivation(email, `${process.env.API_URL}/api/activate/${activationLink}`);   /// it is for log in with Google account
+
     const userDto = new UserDto(user);
     const tokens = tokenServices.generateTokens({ ...userDto });
     await tokenServices.saveToken(userDto.id, tokens.refreshToken);
@@ -46,7 +48,10 @@ class UserService {
   }
 
   async login(email, password) {
-    const user = await UserModel.findOne({ email });
+    if (!email || !password) {
+      throw ApiError.BadRequest("Email and password are required!");
+    }
+    const user = await UserModel.findOne({ email: String(email).toLowerCase() });
     if (!user) {
       throw ApiError.BadRequest("User not found!");
     }
@@ -88,7 +93,7 @@ class UserService {
       { avatar: pathToFile },
       { new: true } // return the updated document
     );
-    return updatedUser;
+    return new UserDto(updatedUser);
   }
 
   async updateProfile(id, data) {
