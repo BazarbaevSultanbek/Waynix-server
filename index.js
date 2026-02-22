@@ -21,6 +21,7 @@ const allowedOrigins = [
   "https://waynix.vercel.app",
 ];
 
+// Core middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -44,19 +45,13 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 socket();
 
-app.use(adminJs.options.rootPath, adminRouter);
-app.use("/api", router);
-
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, env: process.env.NODE_ENV || "unknown" });
-});
-
-app.use(errorMiddleware);
-
+// ---------- DB Connection (must happen before /api routes) ----------
 let isDbConnected = false;
 
 const ensureDefaultAdmin = async () => {
-  const adminEmail = (process.env.ADMIN_EMAIL || "admin@gmail.com").toLowerCase().trim();
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@gmail.com")
+    .toLowerCase()
+    .trim();
   const adminPassword = process.env.ADMIN_PASSWORD || "admin";
 
   const existingAdmin = await UserModel.findOne({ email: adminEmail });
@@ -79,6 +74,7 @@ const ensureDefaultAdmin = async () => {
     newsletterSubscribed: false,
     bio: "Default system administrator account",
   });
+
   console.log(`Default admin created: ${adminEmail}`);
 };
 
@@ -86,18 +82,20 @@ const ensureDb = async () => {
   if (isDbConnected) return;
 
   if (!process.env.DB_URI) {
-    throw new Error("DB_URI is missing in environment");
+    throw new Error("DB_URI is missing in environment variables");
   }
 
   await mongoose.connect(process.env.DB_URI, {
     dbName: process.env.DB_NAME,
+    serverSelectionTimeoutMS: 10000,
   });
 
   await ensureDefaultAdmin();
   isDbConnected = true;
+  console.log("MongoDB connected");
 };
 
-// Ensure DB for each serverless cold start request
+// IMPORTANT: DB middleware before routes
 app.use(async (req, res, next) => {
   try {
     await ensureDb();
@@ -107,7 +105,24 @@ app.use(async (req, res, next) => {
   }
 });
 
-// Local run
+// Health route
+app.get("/api/health", async (req, res) => {
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Routes
+app.use(adminJs.options.rootPath, adminRouter);
+app.use("/api", router);
+
+// Error middleware (last)
+app.use(errorMiddleware);
+
+// Local run only
 if (!process.env.VERCEL) {
   ensureDb()
     .then(() => {
