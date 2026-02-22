@@ -23,7 +23,6 @@ const allowedOrigins = [
   "https://waynix.vercel.app",
 ];
 
-// ---------- Core middleware ----------
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -42,13 +41,12 @@ app.use(
 );
 
 app.options("*", cors());
-
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 socket();
 
-// ---------- DB connection ----------
 let isDbConnected = false;
+let isConnecting = false;
 
 const ensureDefaultAdmin = async () => {
   const adminEmail = (process.env.ADMIN_EMAIL || "admin@gmail.com")
@@ -76,41 +74,31 @@ const ensureDefaultAdmin = async () => {
     newsletterSubscribed: false,
     bio: "Default system administrator account",
   });
-
   console.log(`Default admin created: ${adminEmail}`);
 };
 
 const ensureDb = async () => {
   if (isDbConnected) return;
+  if (isConnecting) return;
 
   if (!process.env.DB_URI) {
     throw new Error("DB_URI is missing in environment variables");
   }
 
-  console.log("DB ENV CHECK:", {
-    hasDbUri: Boolean(process.env.DB_URI),
-    dbName: process.env.DB_NAME || "Waynix",
-    nodeEnv: process.env.NODE_ENV || null,
-    vercelEnv: process.env.VERCEL_ENV || null,
-  });
-
   try {
+    isConnecting = true;
     await mongoose.connect(process.env.DB_URI, {
       dbName: process.env.DB_NAME || "Waynix",
       serverSelectionTimeoutMS: 30000,
     });
-
     await ensureDefaultAdmin();
-
     isDbConnected = true;
     console.log("MongoDB connected");
-  } catch (e) {
-    console.error("MONGO_CONNECT_ERROR:", e.message);
-    throw e;
+  } finally {
+    isConnecting = false;
   }
 };
 
-// IMPORTANT: DB connect middleware BEFORE routes
 app.use(async (req, res, next) => {
   try {
     await ensureDb();
@@ -120,9 +108,8 @@ app.use(async (req, res, next) => {
   }
 });
 
-// ---------- Health routes ----------
 app.get("/api/health", (req, res) => {
-  res.json({ ok: true, service: "waynix-server" });
+  res.json({ ok: true, env: process.env.NODE_ENV || "unknown" });
 });
 
 app.get("/api/health-db", async (req, res) => {
@@ -144,19 +131,13 @@ app.get("/api/health-db", async (req, res) => {
 });
 
 app.get("/api/version", (req, res) => {
-  res.json({ version: "waynix-server-v1" });
+  res.json({ version: "waynix-server-v2" });
 });
 
-
-
-// ---------- App routes ----------
 app.use(adminJs.options.rootPath, adminRouter);
 app.use("/api", router);
-
-// ---------- Error middleware ----------
 app.use(errorMiddleware);
 
-// ---------- Local start ----------
 if (!process.env.VERCEL) {
   ensureDb()
     .then(() => {
@@ -169,5 +150,4 @@ if (!process.env.VERCEL) {
     });
 }
 
-// ---------- Vercel export ----------
 module.exports = app;
