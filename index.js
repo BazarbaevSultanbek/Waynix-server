@@ -4,12 +4,13 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
 const path = require("path");
+const bcrypt = require("bcrypt");
 
 const router = require("./routes/index");
 const { adminJs, router: adminRouter } = require("./admin");
 const socket = require("./controllers/socket-controller");
 const errorMiddleware = require("./middlewares/error-middleware");
-const hotelRoutes = require("./routes/hotelRoutes");
+const UserModel = require("./models/user-model");
 
 const PORT = process.env.PORT || 8001;
 const app = express();
@@ -27,7 +28,7 @@ app.use(cookieParser());
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin) return callback(null, true); // Postman/cURL/server-server
+      if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error("CORS not allowed"));
     },
@@ -45,9 +46,37 @@ socket();
 
 app.use(adminJs.options.rootPath, adminRouter);
 app.use("/api", router);
-app.use("/api/hotels", hotelRoutes);
 
 app.use(errorMiddleware);
+
+const ensureDefaultAdmin = async () => {
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@gmail.com")
+    .toLowerCase()
+    .trim();
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin";
+
+  const existingAdmin = await UserModel.findOne({ email: adminEmail });
+  if (existingAdmin) {
+    existingAdmin.role = "admin";
+    existingAdmin.emailVerified = true;
+    existingAdmin.newsletterSubscribed = false;
+    await existingAdmin.save();
+    return;
+  }
+
+  const hashedPassword = await bcrypt.hash(adminPassword, 10);
+  await UserModel.create({
+    name: "Waynix Admin",
+    email: adminEmail,
+    password: hashedPassword,
+    role: "admin",
+    isActive: true,
+    emailVerified: true,
+    newsletterSubscribed: false,
+    bio: "Default system administrator account",
+  });
+  console.log(`Default admin created: ${adminEmail}`);
+};
 
 const start = async () => {
   try {
@@ -58,6 +87,8 @@ const start = async () => {
     await mongoose.connect(process.env.DB_URI, {
       dbName: process.env.DB_NAME,
     });
+
+    await ensureDefaultAdmin();
 
     app.listen(PORT, () => {
       console.log(`Server started on port ${PORT}!`);

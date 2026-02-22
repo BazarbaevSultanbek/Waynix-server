@@ -1,25 +1,56 @@
-const UserModel = require("../models/user-model");
 const bcrypt = require("bcrypt");
-const tokenServices = require("./token-service");
-const UserDto = require("../dtos/user-dto");
-const ApiError = require("../exceptions/api-error");
 const uuid = require("uuid");
+const UserModel = require("../models/user-model");
+const UserDto = require("../dtos/user-dto");
+const tokenServices = require("./token-service");
+const ApiError = require("../exceptions/api-error");
+const mailService = require("./mail-service");
+
+const WEAK_PASSWORDS = new Set([
+  "123456",
+  "12345678",
+  "qwerty",
+  "password",
+  "admin",
+  "111111",
+  "000000",
+]);
+
+function isStrongPassword(password) {
+  if (typeof password !== "string") return false;
+  if (password.length < 8) return false;
+  if (WEAK_PASSWORDS.has(password.toLowerCase())) return false;
+  return /[A-Za-z]/.test(password) && /\d/.test(password);
+}
+
+function generateVerificationCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 class UserService {
   async register(payload) {
     const { name, email, password, phone_number, isGit } = payload;
-    const normalizedEmail = String(email).toLowerCase().trim();
-    if (!name || !email || !password) {
+    const normalizedEmail = String(email || "").toLowerCase().trim();
+
+    if (!name || !normalizedEmail || !password) {
       throw ApiError.BadRequest("Name, email and password are required!");
     }
-    const candidat = await UserModel.findOne({ email: normalizedEmail });
-    if (candidat) {
+    if (!isStrongPassword(password)) {
       throw ApiError.BadRequest(
-        "A user with this email address already exists!"
+        "Password is too simple. Use at least 8 characters with letters and numbers."
       );
     }
+
+    const existing = await UserModel.findOne({ email: normalizedEmail });
+    if (existing) {
+      throw ApiError.BadRequest("A user with this email address already exists!");
+    }
+
     const hashpassword = await bcrypt.hash(password, 10);
     const activationLink = uuid.v4();
+    const verificationCode = generateVerificationCode();
+    const verificationCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
     const user = await UserModel.create({
       name,
       email: normalizedEmail,
@@ -28,37 +59,75 @@ class UserService {
       isGit: Boolean(isGit),
       activationLink,
       joinedAt: new Date(),
+      emailVerified: false,
+      verificationCode,
+      verificationCodeExpiresAt,
     });
+
+    await mailService.sendVerificationCode(normalizedEmail, verificationCode);
 
     const userDto = new UserDto(user);
     const tokens = tokenServices.generateTokens({ ...userDto });
     await tokenServices.saveToken(userDto.id, tokens.refreshToken);
-
     return { ...tokens, user: userDto };
   }
 
-  async activate(activationLink) {
-    const user = await UserModel.findOne({ activationLink });
-    if (!user) {
-      throw ApiError.BadRequest("Not corrected link!");
+  async verifyEmailCode(email, code) {
+    const normalizedEmail = String(email || "").toLowerCase().trim();
+    const user = await UserModel.findOne({ email: normalizedEmail });
+    if (!user) throw ApiError.BadRequest("User not found");
+    if (!user.verificationCode || !user.verificationCodeExpiresAt) {
+      throw ApiError.BadRequest("Verification code not found");
+    }
+    if (new Date() > new Date(user.verificationCodeExpiresAt)) {
+      throw ApiError.BadRequest("Verification code expired");
+    }
+    if (String(user.verificationCode) !== String(code || "")) {
+      throw ApiError.BadRequest("Verification code is incorrect");
     }
 
-    user.isActive = true;
+    user.emailVerified = true;
+    user.verificationCode = "";
+    user.verificationCodeExpiresAt = null;
     await user.save();
+    return new UserDto(user);
+  }
+
+  async resendVerificationCode(email) {
+    const normalizedEmail = String(email || "").toLowerCase().trim();
+    const user = await UserModel.findOne({ email: normalizedEmail });
+    if (!user) throw ApiError.BadRequest("User not found");
+    if (user.emailVerified) {
+      throw ApiError.BadRequest("Email is already verified");
+    }
+
+    const verificationCode = generateVerificationCode();
+    user.verificationCode = verificationCode;
+    user.verificationCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+    await mailService.sendVerificationCode(normalizedEmail, verificationCode);
+    return true;
   }
 
   async login(email, password) {
     if (!email || !password) {
       throw ApiError.BadRequest("Email and password are required!");
     }
-    const user = await UserModel.findOne({ email: String(email).toLowerCase() });
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const user = await UserModel.findOne({ email: normalizedEmail });
     if (!user) {
       throw ApiError.BadRequest("User not found!");
     }
+    if (!user.emailVerified) {
+      throw ApiError.BadRequest("Please verify your email first");
+    }
+
     const isPasswordEquals = await bcrypt.compare(password, user.password);
     if (!isPasswordEquals) {
       throw ApiError.BadRequest("Incorrect password!");
     }
+
     const userDto = new UserDto(user);
     const tokens = tokenServices.generateTokens({ ...userDto });
     await tokenServices.saveToken(userDto.id, tokens.refreshToken);
@@ -66,8 +135,7 @@ class UserService {
   }
 
   async logout(refreshToken) {
-    const tokenData = await tokenServices.removeToken(refreshToken);
-    return tokenData;
+    return tokenServices.removeToken(refreshToken);
   }
 
   async refresh(refreshToken) {
@@ -80,6 +148,7 @@ class UserService {
     if (!userData || !tokenFromDB) {
       throw ApiError.UnauthorizedError();
     }
+
     const user = await UserModel.findById(userData.id);
     const userDto = new UserDto(user);
     const tokens = tokenServices.generateTokens({ ...userDto });
@@ -91,7 +160,7 @@ class UserService {
     const updatedUser = await UserModel.findByIdAndUpdate(
       id,
       { avatar: pathToFile },
-      { new: true } // return the updated document
+      { new: true }
     );
     return new UserDto(updatedUser);
   }
@@ -104,13 +173,17 @@ class UserService {
       bio: data.bio,
       location: data.location,
       socials: data.socials,
-      settings: data.settings,
+      settings: data.settings
+        ? {
+            language: data.settings.language,
+            fontSize: data.settings.fontSize,
+            notifications: data.settings.notifications,
+          }
+        : undefined,
     };
 
     Object.keys(allowed).forEach((key) => {
-      if (allowed[key] === undefined) {
-        delete allowed[key];
-      }
+      if (allowed[key] === undefined) delete allowed[key];
     });
 
     if (allowed.email) {
@@ -118,9 +191,7 @@ class UserService {
         email: allowed.email,
         _id: { $ne: id },
       });
-      if (exists) {
-        throw ApiError.BadRequest("Email already in use");
-      }
+      if (exists) throw ApiError.BadRequest("Email already in use");
     }
 
     const updatedUser = await UserModel.findByIdAndUpdate(id, allowed, {
@@ -133,14 +204,14 @@ class UserService {
     if (!oldPassword || !newPassword) {
       throw ApiError.BadRequest("Old password and new password are required");
     }
-    if (newPassword.length < 6) {
-      throw ApiError.BadRequest("New password must be at least 6 characters");
+    if (!isStrongPassword(newPassword)) {
+      throw ApiError.BadRequest(
+        "New password is too simple. Use at least 8 characters with letters and numbers."
+      );
     }
 
     const user = await UserModel.findById(id);
-    if (!user) {
-      throw ApiError.BadRequest("User not found");
-    }
+    if (!user) throw ApiError.BadRequest("User not found");
 
     const isValidOld = await bcrypt.compare(oldPassword, user.password);
     if (!isValidOld) {
@@ -152,133 +223,23 @@ class UserService {
     return true;
   }
 
-  async getUser(id) {
-    const user = await UserModel.findOne({ _id: id });
-    return user;
+  async sendNewsletter(subject, content) {
+    if (!subject || !content) {
+      throw ApiError.BadRequest("Subject and content are required");
+    }
+    const users = await UserModel.find({
+      newsletterSubscribed: true,
+      emailVerified: true,
+    }).select("email");
+
+    for (const user of users) {
+      await mailService.sendNewsEmail(user.email, subject, content);
+    }
+    return users.length;
   }
+
   async getAllUsers(id) {
-    const users = await UserModel.find({ _id: { $ne: id } });
-    return users;
-  }
-  async getFriends(id) {
-    const user = await UserModel.findOne({ _id: id });
-    const friendIds = user.friends;
-    let friends = await UserModel.find({ _id: { $in: friendIds } });
-    friends = friends.map((friend) => new UserDto(friend));
-    return friends;
-  }
-  async friendRequests(id) {
-    const user = await UserModel.findOne({ _id: id });
-    const requests = user.requests;
-    let userRequests = await UserModel.find({ _id: { $in: requests } });
-    userRequests = userRequests.map((users) => new UserDto(users));
-    return userRequests;
-  }
-  async getUnfriends(id) {
-    const user = await UserModel.findOne({ _id: id });
-    let unfriends = await UserModel.find({ _id: { $ne: id } });
-    unfriends = unfriends.filter((item) => !user.friends.includes(item._id));
-    unfriends = unfriends.filter((item) => !user.waiting.includes(item._id));
-    unfriends = unfriends.map((unfriend) => new UserDto(unfriend));
-    return unfriends;
-  }
-  async getFamilliars(id) {
-    const user = await UserModel.findOne({ _id: id });
-    const friends = await UserModel.find({ _id: { $in: user.friends } });
-    let unfriends = await UserModel.find({ _id: { $ne: id } });
-    unfriends = unfriends.filter((item) => !user.friends.includes(item._id));
-    unfriends = unfriends.filter((item) => !user.requests.includes(item._id));
-    let arr = [];
-    friends.forEach((friend) => {
-      friend.friends.forEach((item) => {
-        arr.push(item);
-      });
-    });
-    let set = new Set(arr);
-    return unfriends
-      .filter((user) => Array.from(set).includes(user._id.toString()))
-      .map((unfriend) => new UserDto(unfriend));
-  }
-
-  async friendRequest(id, candidate) {
-    await UserModel.findByIdAndUpdate(
-      id,
-      { $push: { waiting: candidate } },
-      { new: true }
-    );
-    return await UserModel.findByIdAndUpdate(
-      candidate,
-      { $push: { requests: id } },
-      { new: true }
-    );
-  }
-
-  async cancelFriendRequest(id, candidate) {
-    await UserModel.findByIdAndUpdate(
-      id,
-      { $pull: { wait: candidate } },
-      { new: true }
-    );
-    return await UserModel.findByIdAndUpdate(
-      candidate,
-      { $pull: { requests: id } },
-      { new: true }
-    );
-  }
-
-  async deleteFriend(id, candidate) {
-    await UserModel.findByIdAndUpdate(
-      id,
-      { $pull: { friend: candidate } },
-      { new: true }
-    );
-    return await UserModel.findByIdAndUpdate(
-      candidate,
-      { $pull: { friend: id } },
-      { new: true }
-    );
-  }
-
-  async addToFriend(id, candidate) {
-    await UserModel.findByIdAndUpdate(
-      id,
-      { $pull: { requests: candidate } },
-      { new: true }
-    );
-    await UserModel.findByIdAndUpdate(
-      id,
-      { $push: { friends: candidate } },
-      { new: true }
-    );
-    await UserModel.findByIdAndUpdate(
-      candidate,
-      { $pull: { waiting: id } },
-      { new: true }
-    );
-    await UserModel.findByIdAndUpdate(
-      candidate,
-      { $push: { friends: id } },
-      { new: true }
-    );
-    const user = await UserModel.findByIdAndUpdate(
-      id,
-      { $push: { friends: candidate } },
-      { new: true }
-    );
-    return user;
-  }
-
-  async deleteFriendRequest(id, candidate) {
-    await UserModel.findByIdAndUpdate(
-      candidate,
-      { $pull: { wait: id } },
-      { new: true }
-    );
-    return await UserModel.findByIdAndUpdate(
-      id,
-      { $pull: { requests: candidate } },
-      { new: true }
-    );
+    return UserModel.find({ _id: { $ne: id } });
   }
 }
 

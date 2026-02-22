@@ -16,6 +16,7 @@ module.exports = class UserDto {
   comments;
   settings;
   isActive;
+  emailVerified;
   isGit;
   stats;
 
@@ -31,13 +32,14 @@ module.exports = class UserDto {
     this.location = obj.location || "";
     this.joinedAt = obj.joinedAt;
     this.createdAt = obj.createdAt;
-    this.language = obj.language || "uz";
+    this.language = obj.settings?.language || obj.language || "uz";
     this.socials = obj.socials || {};
     this.visitedPlaces = obj.visitedPlaces || [];
     this.savedPlaces = obj.savedPlaces || [];
     this.comments = obj.comments || [];
     this.settings = obj.settings;
     this.isActive = Boolean(obj.isActive);
+    this.emailVerified = Boolean(obj.emailVerified);
     this.isGit = Boolean(obj.isGit);
     this.stats = obj.stats || {};
   }

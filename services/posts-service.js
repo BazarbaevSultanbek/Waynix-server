@@ -1,7 +1,4 @@
 const PostsModel = require("../models/posts-model");
-const UserModel = require("../models/user-model");
-const ApiError = require("../exceptions/api-error");
-const {ObjectId} = require("mongodb");
 
 class PostsService {
     async addPost(text, date, type, idFile, pathToFile, user) {
@@ -9,15 +6,12 @@ class PostsService {
         return post;
     }
 
-    async getAllPosts(userId) {
-        const user = await UserModel.findOne({_id: userId});
-
-        const friendIds = user?.friends;
-        const result = await PostsModel.find({user: {$in: friendIds}})
+    async getAllPosts() {
+        const result = await PostsModel.find({})
             .populate("user", "name")
             .exec()
-            .then((friendsPosts) => {
-                return friendsPosts;
+            .then((posts) => {
+                return posts;
             })
             .catch((err) => {
                 console.error('Error querying posts:', err);

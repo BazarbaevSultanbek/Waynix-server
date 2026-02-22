@@ -1,6 +1,6 @@
-const userServices = require("../services/user-service");
 const { validationResult } = require("express-validator");
 const ApiError = require("../exceptions/api-error");
+const userServices = require("../services/user-service");
 
 const getCookieOptions = (isRefresh = false) => {
   const isProd = process.env.NODE_ENV === "production";
@@ -13,43 +13,13 @@ const getCookieOptions = (isRefresh = false) => {
 };
 
 class UserController {
-  async login(req, res, next) {
-    try {
-      const { email, password } = req.body;
-      const userData = await userServices.login(email, password);
-      res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
-      res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
-      res.cookie("currentUser", JSON.stringify(userData.user), {
-        ...getCookieOptions(false),
-        maxAge: 30 * 24 * 3600 * 1000,
-      });
-      return res.json(userData);
-    } catch (e) {
-      next(e);
-    }
-  }
-  async logout(req, res, next) {
-    try {
-      const { refreshToken } = req.cookies;
-      if (refreshToken) {
-        await userServices.logout(refreshToken);
-      }
-      res.clearCookie("refreshToken", getCookieOptions(true));
-      res.clearCookie("accessToken", getCookieOptions(false));
-      res.clearCookie("currentUser", getCookieOptions(false));
-      const tokenData = { success: true };
-      return res.json(tokenData);
-    } catch (e) {
-      next(e);
-    }
-  }
-
   async register(req, res, next) {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return next(ApiError.BadRequest("Validation error", errors.array()));
       }
+
       const { name, email, password, phone_number, isGit } = req.body;
       const userData = await userServices.register({
         name,
@@ -58,6 +28,48 @@ class UserController {
         phone_number,
         isGit,
       });
+
+      res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
+      res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
+      res.cookie("currentUser", JSON.stringify(userData.user), {
+        ...getCookieOptions(false),
+        maxAge: 30 * 24 * 3600 * 1000,
+      });
+      return res.json({
+        ...userData,
+        message:
+          "Registration successful. Please verify your email with the code sent.",
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  async verifyEmail(req, res, next) {
+    try {
+      const { email, code } = req.body;
+      const user = await userServices.verifyEmailCode(email, code);
+      return res.json({ user, message: "Email verified successfully" });
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  async resendVerification(req, res, next) {
+    try {
+      const { email } = req.body;
+      await userServices.resendVerificationCode(email);
+      return res.json({ message: "Verification code sent" });
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  async login(req, res, next) {
+    try {
+      const { email, password } = req.body;
+      const userData = await userServices.login(email, password);
+
       res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
       res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
       res.cookie("currentUser", JSON.stringify(userData.user), {
@@ -65,6 +77,21 @@ class UserController {
         maxAge: 30 * 24 * 3600 * 1000,
       });
       return res.json(userData);
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  async logout(req, res, next) {
+    try {
+      const { refreshToken } = req.cookies;
+      if (refreshToken) await userServices.logout(refreshToken);
+
+      res.clearCookie("refreshToken", getCookieOptions(true));
+      res.clearCookie("accessToken", getCookieOptions(false));
+      res.clearCookie("currentUser", getCookieOptions(false));
+
+      return res.json({ success: true });
     } catch (e) {
       next(e);
     }
@@ -74,22 +101,14 @@ class UserController {
     try {
       const { refreshToken } = req.cookies;
       const userData = await userServices.refresh(refreshToken);
+
       res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
       res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
       res.cookie("currentUser", JSON.stringify(userData.user), {
-        maxAge: 30 * 24 * 3600 * 1000,
         ...getCookieOptions(false),
+        maxAge: 30 * 24 * 3600 * 1000,
       });
       return res.json(userData);
-    } catch (e) {
-      next(e);
-    }
-  }
-  async activate(req, res, next) {
-    try {
-      const activationLink = await req.params.link;
-      await userServices.activate(activationLink);
-      return res.redirect(process.env.CLIENT_URL);
     } catch (e) {
       next(e);
     }
@@ -100,14 +119,15 @@ class UserController {
       if (!req.file) {
         return res.status(400).json({ message: "Avatar file is required" });
       }
-
       const userId = req.user.id;
       const avatarUrl = `/uploads/${req.file.filename}`;
       const updatedUser = await userServices.addAvatar(userId, avatarUrl);
-
-      res.json({ user: updatedUser });
+      res.cookie("currentUser", JSON.stringify(updatedUser), {
+        ...getCookieOptions(false),
+        maxAge: 30 * 24 * 3600 * 1000,
+      });
+      return res.json({ user: updatedUser });
     } catch (e) {
-      console.error(e);
       next(e);
     }
   }
@@ -115,34 +135,36 @@ class UserController {
   async updateProfile(req, res, next) {
     try {
       const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const updatedUser = await userServices.updateProfile(userId, req.body);
-      if (!updatedUser) {
-        return res.status(400).json({ error: "User not found" });
-      }
-
-      // Keep currentUser cookie in sync
       res.cookie("currentUser", JSON.stringify(updatedUser), {
         ...getCookieOptions(false),
         maxAge: 30 * 24 * 3600 * 1000,
       });
-
       return res.json({ user: updatedUser });
     } catch (e) {
       next(e);
     }
   }
+
   async changePassword(req, res, next) {
     try {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
       const { oldPassword, newPassword } = req.body;
       await userServices.changePassword(userId, oldPassword, newPassword);
-      return res.status(200).json({ message: "Password changed successfully" });
+      return res.json({ message: "Password changed successfully" });
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  async sendNewsletter(req, res, next) {
+    try {
+      const { subject, content } = req.body;
+      const count = await userServices.sendNewsletter(subject, content);
+      return res.json({ message: "Newsletter sent", count });
     } catch (e) {
       next(e);
     }
@@ -153,97 +175,6 @@ class UserController {
       const id = req.query.id;
       const users = await userServices.getAllUsers(id);
       return res.json(users);
-    } catch (e) {
-      next(e);
-    }
-  }
-  async getFriends(req, res, next) {
-    try {
-      const id = req.query.userId;
-      const users = await userServices.getFriends(id);
-      return res.json(users);
-    } catch (e) {
-      next(e);
-    }
-  }
-  async friendRequests(req, res, next) {
-    try {
-      const id = req.query.id;
-      const users = await userServices.friendRequests(id);
-      return res.json(users);
-    } catch (e) {
-      next(e);
-    }
-  }
-  async getUnfriends(req, res, next) {
-    try {
-      const id = req.query.id;
-      const users = await userServices.getUnfriends(id);
-      return res.json(users);
-    } catch (e) {
-      next(e);
-    }
-  }
-  async getFamilliars(req, res, next) {
-    try {
-      const id = req.query.userId;
-      const users = await userServices.getFamilliars(id);
-      return res.json(users);
-    } catch (e) {
-      next(e);
-    }
-  }
-
-  async friendRequest(req, res, next) {
-    try {
-      const id = req.query.id;
-      const сandidate = req.query.candidate;
-      const user = await userServices.friendRequest(id, сandidate);
-      return res.json(user);
-    } catch (e) {
-      next(e);
-    }
-  }
-
-  async cancelFriendRequest(req, res, next) {
-    try {
-      const id = req.query.id;
-      const сandidate = req.query.candidate;
-      const user = await userServices.cancelFriendRequest(id, сandidate);
-      return res.json(user);
-    } catch (e) {
-      next(e);
-    }
-  }
-
-  async addToFriend(req, res, next) {
-    try {
-      const id = req.query.id;
-      const сandidate = req.query.candidate;
-      const user = await userServices.addToFriend(id, сandidate);
-      return res.json(user);
-    } catch (e) {
-      next(e);
-    }
-  }
-
-  async deleteFriend(req, res, next) {
-    try {
-      const id = req.query.id;
-      const сandidate = req.query.candidate;
-      const user = await userServices.deleteFriend(id, сandidate);
-      return res.json(user);
-    } catch (e) {
-      next(e);
-    }
-  }
-
-  async deleteFriendRequest(req, res, next) {
-    try {
-      const id = req.query.id;
-      const сandidate = req.query.candidate;
-      const user = await userServices.deleteFriendRequest(id, сandidate);
-      return res.json(user);
     } catch (e) {
       next(e);
     }
