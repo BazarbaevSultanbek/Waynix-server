@@ -143,6 +143,11 @@ app.get("/api/health-db", async (req, res) => {
   }
 });
 
+app.get("/api/version", (req, res) => {
+  res.json({ version: "new-index-v3" });
+});
+
+
 // ---------- App routes ----------
 app.use(adminJs.options.rootPath, adminRouter);
 app.use("/api", router);
