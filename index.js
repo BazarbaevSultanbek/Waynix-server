@@ -47,12 +47,16 @@ socket();
 app.use(adminJs.options.rootPath, adminRouter);
 app.use("/api", router);
 
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, env: process.env.NODE_ENV || "unknown" });
+});
+
 app.use(errorMiddleware);
 
+let isDbConnected = false;
+
 const ensureDefaultAdmin = async () => {
-  const adminEmail = (process.env.ADMIN_EMAIL || "admin@gmail.com")
-    .toLowerCase()
-    .trim();
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@gmail.com").toLowerCase().trim();
   const adminPassword = process.env.ADMIN_PASSWORD || "admin";
 
   const existingAdmin = await UserModel.findOne({ email: adminEmail });
@@ -78,24 +82,43 @@ const ensureDefaultAdmin = async () => {
   console.log(`Default admin created: ${adminEmail}`);
 };
 
-const start = async () => {
-  try {
-    if (!process.env.DB_URI) {
-      throw new Error("DB_URI is missing in .env");
-    }
+const ensureDb = async () => {
+  if (isDbConnected) return;
 
-    await mongoose.connect(process.env.DB_URI, {
-      dbName: process.env.DB_NAME,
-    });
-
-    await ensureDefaultAdmin();
-
-    app.listen(PORT, () => {
-      console.log(`Server started on port ${PORT}!`);
-    });
-  } catch (e) {
-    console.error("Failed to start server:", e);
+  if (!process.env.DB_URI) {
+    throw new Error("DB_URI is missing in environment");
   }
+
+  await mongoose.connect(process.env.DB_URI, {
+    dbName: process.env.DB_NAME,
+  });
+
+  await ensureDefaultAdmin();
+  isDbConnected = true;
 };
 
-start();
+// Ensure DB for each serverless cold start request
+app.use(async (req, res, next) => {
+  try {
+    await ensureDb();
+    next();
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Local run
+if (!process.env.VERCEL) {
+  ensureDb()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`Server started on port ${PORT}!`);
+      });
+    })
+    .catch((e) => {
+      console.error("Failed to start server:", e);
+    });
+}
+
+// Vercel serverless export
+module.exports = app;
