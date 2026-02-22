@@ -11,12 +11,10 @@ const router = express.Router();
 
 router.post(
   "/register",
-  (req, res, next) => {
-    console.log(" Incoming register data:", req.body);
-    next();
-  },
+  body("name").trim().isLength({ min: 2, max: 60 }),
   body("email").isEmail(),
-  body("password").isLength({ min: 4, max: 16 }),
+  body("password").isLength({ min: 6, max: 64 }),
+  body("phone_number").optional({ nullable: true, checkFalsy: true }).isLength({ min: 7, max: 20 }),
   userController.register
 );
 
@@ -47,6 +45,5 @@ router.post("/delete-friend-request", authMiddleware, userController.deleteFrien
 
 
 module.exports = router;
-
 
 

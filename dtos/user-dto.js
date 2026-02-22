@@ -1,16 +1,44 @@
-module.exports = class UserDto{
-    email;
-    id;
-    isActivated;
-    name;
-    phone_number;
-    avatar;
-    constructor(modal) {
-        this.email = modal.email;
-        this.id = modal._id;
-        this.isActivated = modal.isActivated;
-        this.name = modal.name;
-        this.phone_number = modal.phone_number;
-        this.avatar = modal.avatar;
-    }
-}
+module.exports = class UserDto {
+  id;
+  name;
+  email;
+  phone_number;
+  avatar;
+  role;
+  bio;
+  location;
+  joinedAt;
+  createdAt;
+  language;
+  socials;
+  visitedPlaces;
+  savedPlaces;
+  comments;
+  settings;
+  isActive;
+  isGit;
+  stats;
+
+  constructor(user) {
+    const obj = user || {};
+    this.id = obj._id ? String(obj._id) : (obj.id ? String(obj.id) : undefined);
+    this.name = obj.name;
+    this.email = obj.email;
+    this.phone_number = obj.phone_number;
+    this.avatar = obj.avatar;
+    this.role = obj.role;
+    this.bio = obj.bio || "";
+    this.location = obj.location || "";
+    this.joinedAt = obj.joinedAt;
+    this.createdAt = obj.createdAt;
+    this.language = obj.language || "uz";
+    this.socials = obj.socials || {};
+    this.visitedPlaces = obj.visitedPlaces || [];
+    this.savedPlaces = obj.savedPlaces || [];
+    this.comments = obj.comments || [];
+    this.settings = obj.settings;
+    this.isActive = Boolean(obj.isActive);
+    this.isGit = Boolean(obj.isGit);
+    this.stats = obj.stats || {};
+  }
+};

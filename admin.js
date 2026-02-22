@@ -1,46 +1,108 @@
 const AdminJS = require("adminjs");
 const AdminJSExpress = require("@adminjs/express");
-const AdminJSMongoose = require("@adminjs/mongoose"); // 👈 IMPORTANT
-const mongoose = require("mongoose");
+const AdminJSMongoose = require("@adminjs/mongoose");
 
-// Import your models
 const Hotel = require("./models/hotel-model");
 const User = require("./models/user-model");
 
-// Register adapter
 AdminJS.registerAdapter(AdminJSMongoose);
 
-// Initialize AdminJS
 const adminJs = new AdminJS({
   resources: [
     {
       resource: Hotel,
       options: {
         listProperties: ["name", "location", "price", "rating"],
-        editProperties: [
-          "name",
-          "description",
-          "location",
-          "price",
-          "rating",
-          "image",
-          "phone",
-        ],
-        filterProperties: ["name", "location"],
+        filterProperties: ["name", "location", "rating"],
+        editProperties: ["name", "description", "location", "price", "rating", "image", "phone"],
       },
     },
     {
       resource: User,
       options: {
-        listProperties: ["name", "email", "phone_number"],
-        editProperties: ["name", "email", "phone_number", "avatar"],
+        listProperties: [
+          "name",
+          "email",
+          "phone_number",
+          "role",
+          "isActive",
+          "isGit",
+          "createdAt",
+        ],
+        filterProperties: [
+          "name",
+          "email",
+          "phone_number",
+          "role",
+          "isActive",
+          "location",
+          "language",
+          "createdAt",
+        ],
+        showProperties: [
+          "_id",
+          "name",
+          "email",
+          "phone_number",
+          "avatar",
+          "role",
+          "isActive",
+          "isGit",
+          "bio",
+          "location",
+          "language",
+          "socials.instagram",
+          "socials.telegram",
+          "socials.linkedin",
+          "socials.email",
+          "stats.placesCount",
+          "stats.savedCount",
+          "stats.commentsCount",
+          "stats.avgRating",
+          "likedPlaces",
+          "visitedPlaces",
+          "bookedPlaces",
+          "friends",
+          "requests",
+          "waiting",
+          "createdAt",
+          "updatedAt",
+        ],
+        editProperties: [
+          "name",
+          "email",
+          "phone_number",
+          "avatar",
+          "role",
+          "isActive",
+          "isGit",
+          "bio",
+          "location",
+          "language",
+          "socials.instagram",
+          "socials.telegram",
+          "socials.linkedin",
+          "socials.email",
+          "stats.placesCount",
+          "stats.savedCount",
+          "stats.commentsCount",
+          "stats.avgRating",
+          "likedPlaces",
+          "visitedPlaces",
+          "bookedPlaces",
+          "friends",
+          "requests",
+          "waiting",
+        ],
+        properties: {
+          password: { isVisible: false },
+          activationLink: { isVisible: false },
+        },
       },
     },
   ],
   rootPath: "/admin",
 });
 
-// Build router
 const router = AdminJSExpress.buildRouter(adminJs);
-
 module.exports = { adminJs, router };

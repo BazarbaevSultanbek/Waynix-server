@@ -14,64 +14,30 @@ const hotelRoutes = require("./routes/hotelRoutes");
 const PORT = process.env.PORT || 8001;
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://waynix.vercel.app",
+];
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  const allowedOrigins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "https://waynix.vercel.app",
-  ];
-
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
-  );
-
-  // 🔥 THIS IS THE KEY
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
-
-
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // allow requests with no origin (like Postman)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        return callback(new Error("CORS not allowed"));
-      }
+    origin(origin, callback) {
+      if (!origin) return callback(null, true); // Postman/cURL/server-server
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS not allowed"));
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// 👇 VERY IMPORTANT
 app.options("*", cors());
-
-
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -85,13 +51,17 @@ app.use(errorMiddleware);
 
 const start = async () => {
   try {
+    if (!process.env.DB_URI) {
+      throw new Error("DB_URI is missing in .env");
+    }
+
     await mongoose.connect(process.env.DB_URI, {
       dbName: process.env.DB_NAME,
     });
 
-    app.listen(PORT, () =>
-      console.log(`Server started on port ${PORT}!`)
-    );
+    app.listen(PORT, () => {
+      console.log(`Server started on port ${PORT}!`);
+    });
   } catch (e) {
     console.error("Failed to start server:", e);
   }
