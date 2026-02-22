@@ -144,8 +144,9 @@ app.get("/api/health-db", async (req, res) => {
 });
 
 app.get("/api/version", (req, res) => {
-  res.json({ version: "new-index-v3" });
+  res.json({ version: "waynix-server-v1" });
 });
+
 
 
 // ---------- App routes ----------

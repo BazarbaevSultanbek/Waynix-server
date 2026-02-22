@@ -10,6 +10,8 @@ const upload = require("../middlewares/upload");
 
 const router = express.Router();
 
+
+
 router.post(
   "/register",
   body("name").trim().isLength({ min: 2, max: 60 }),
@@ -22,6 +24,8 @@ router.post(
     .isLength({ min: 7, max: 20 }),
   userController.register,
 );
+
+
 router.post(
   "/verify-email",
   body("email").isEmail(),
