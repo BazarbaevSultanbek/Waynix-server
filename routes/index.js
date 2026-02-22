@@ -21,6 +21,13 @@ router.post(
 
 
 router.put("/update-profile", authMiddleware, userController.updateProfile);
+router.post(
+  "/change-password",
+  authMiddleware,
+  body("oldPassword").isLength({ min: 1 }),
+  body("newPassword").isLength({ min: 6, max: 64 }),
+  userController.changePassword
+);
 router.post("/login", userController.login);
 router.post("/logout", userController.logout);
 router.get("/activate/:link", userController.activate);
@@ -45,5 +52,4 @@ router.post("/delete-friend-request", authMiddleware, userController.deleteFrien
 
 
 module.exports = router;
-
 

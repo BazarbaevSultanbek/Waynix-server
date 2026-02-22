@@ -97,7 +97,59 @@ class UserService {
   }
 
   async updateProfile(id, data) {
-    return await UserModel.findByIdAndUpdate(id, data, { new: true });
+    const allowed = {
+      name: data.name,
+      email: data.email ? String(data.email).toLowerCase().trim() : undefined,
+      phone_number: data.phone_number,
+      bio: data.bio,
+      location: data.location,
+      socials: data.socials,
+      settings: data.settings,
+    };
+
+    Object.keys(allowed).forEach((key) => {
+      if (allowed[key] === undefined) {
+        delete allowed[key];
+      }
+    });
+
+    if (allowed.email) {
+      const exists = await UserModel.findOne({
+        email: allowed.email,
+        _id: { $ne: id },
+      });
+      if (exists) {
+        throw ApiError.BadRequest("Email already in use");
+      }
+    }
+
+    const updatedUser = await UserModel.findByIdAndUpdate(id, allowed, {
+      new: true,
+    });
+    return new UserDto(updatedUser);
+  }
+
+  async changePassword(id, oldPassword, newPassword) {
+    if (!oldPassword || !newPassword) {
+      throw ApiError.BadRequest("Old password and new password are required");
+    }
+    if (newPassword.length < 6) {
+      throw ApiError.BadRequest("New password must be at least 6 characters");
+    }
+
+    const user = await UserModel.findById(id);
+    if (!user) {
+      throw ApiError.BadRequest("User not found");
+    }
+
+    const isValidOld = await bcrypt.compare(oldPassword, user.password);
+    if (!isValidOld) {
+      throw ApiError.BadRequest("Old password is incorrect");
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    return true;
   }
 
   async getUser(id) {

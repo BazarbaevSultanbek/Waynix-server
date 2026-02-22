@@ -1,7 +1,6 @@
 const userServices = require("../services/user-service");
 const { validationResult } = require("express-validator");
 const ApiError = require("../exceptions/api-error");
-const userModel = require("../models/user-model");
 
 const getCookieOptions = (isRefresh = false) => {
   const isProd = process.env.NODE_ENV === "production";
@@ -115,42 +114,28 @@ class UserController {
 
   async updateProfile(req, res, next) {
     try {
-      console.log("Update profile request body:", req.body);
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const updatedUser = await userServices.updateProfile(userId, req.body);
+      if (!updatedUser) return res.status(400).json({ error: "User not found" });
+      res.cookie("currentUser", JSON.stringify(updatedUser), {
+        ...getCookieOptions(false),
+        maxAge: 30 * 24 * 3600 * 1000,
+      });
+      return res.status(200).json({ user: updatedUser });
+    } catch (e) {
+      next(e);
+    }
+  }
 
+  async changePassword(req, res, next) {
+    try {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const { name, email, phone_number } = req.body;
-
-      // Fetch all other users (for debugging / checking ID matches)
-      const otherUsers = await userModel.find({ _id: { $ne: userId } });
-
-      console.log("Current user ID:", userId);
-      console.log(
-        "Other users IDs:",
-        otherUsers.map((u) => u._id.toString())
-      );
-
-      // Update the current user using your service
-      const updatedUser = await userServices.updateProfile(userId, {
-        name,
-        email,
-        phone_number,
-      });
-
-      if (!updatedUser)
-        return res.status(400).json({ error: "User not found" });
-
-      // Return a clean user object
-      return res.status(200).json({
-        user: {
-          id: updatedUser._id.toString(),
-          name: updatedUser.name,
-          email: updatedUser.email,
-          phone_number: updatedUser.phone_number,
-          avatar: updatedUser.avatar,
-        },
-      });
+      const { oldPassword, newPassword } = req.body;
+      await userServices.changePassword(userId, oldPassword, newPassword);
+      return res.status(200).json({ message: "Password changed successfully" });
     } catch (e) {
       next(e);
     }
