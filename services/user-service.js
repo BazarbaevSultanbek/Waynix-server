@@ -30,20 +30,24 @@ function generateVerificationCode() {
 class UserService {
   async register(payload) {
     const { name, email, password, phone_number, isGit } = payload;
-    const normalizedEmail = String(email || "").toLowerCase().trim();
+    const normalizedEmail = String(email || "")
+      .toLowerCase()
+      .trim();
 
     if (!name || !normalizedEmail || !password) {
       throw ApiError.BadRequest("Name, email and password are required!");
     }
     if (!isStrongPassword(password)) {
       throw ApiError.BadRequest(
-        "Password is too simple. Use at least 8 characters with letters and numbers."
+        "Password is too simple. Use at least 8 characters with letters and numbers.",
       );
     }
 
     const existing = await UserModel.findOne({ email: normalizedEmail });
     if (existing) {
-      throw ApiError.BadRequest("A user with this email address already exists!");
+      throw ApiError.BadRequest(
+        "A user with this email address already exists!",
+      );
     }
 
     const hashpassword = await bcrypt.hash(password, 10);
@@ -73,7 +77,9 @@ class UserService {
   }
 
   async verifyEmailCode(email, code) {
-    const normalizedEmail = String(email || "").toLowerCase().trim();
+    const normalizedEmail = String(email || "")
+      .toLowerCase()
+      .trim();
     const user = await UserModel.findOne({ email: normalizedEmail });
     if (!user) throw ApiError.BadRequest("User not found");
     if (!user.verificationCode || !user.verificationCodeExpiresAt) {
@@ -94,7 +100,9 @@ class UserService {
   }
 
   async resendVerificationCode(email) {
-    const normalizedEmail = String(email || "").toLowerCase().trim();
+    const normalizedEmail = String(email || "")
+      .toLowerCase()
+      .trim();
     const user = await UserModel.findOne({ email: normalizedEmail });
     if (!user) throw ApiError.BadRequest("User not found");
     if (user.emailVerified) {
@@ -160,7 +168,7 @@ class UserService {
     const updatedUser = await UserModel.findByIdAndUpdate(
       id,
       { avatar: pathToFile },
-      { new: true }
+      { new: true },
     );
     return new UserDto(updatedUser);
   }
@@ -200,13 +208,25 @@ class UserService {
     return new UserDto(updatedUser);
   }
 
+  async deleteAvatar(id) {
+    const defaultAvatar =
+      "https://api.dicebear.com/7.x/initials/svg?seed=Waynix%20User";
+
+    const updatedUser = await UserModel.findByIdAndUpdate(
+      id,
+      { avatar: defaultAvatar },
+      { new: true },
+    );
+    return new UserDto(updatedUser);
+  }
+
   async changePassword(id, oldPassword, newPassword) {
     if (!oldPassword || !newPassword) {
       throw ApiError.BadRequest("Old password and new password are required");
     }
     if (!isStrongPassword(newPassword)) {
       throw ApiError.BadRequest(
-        "New password is too simple. Use at least 8 characters with letters and numbers."
+        "New password is too simple. Use at least 8 characters with letters and numbers.",
       );
     }
 

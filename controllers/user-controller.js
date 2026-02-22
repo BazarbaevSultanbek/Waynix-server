@@ -148,6 +148,24 @@ class UserController {
     }
   }
 
+  async deleteAvatar(req, res, next) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const updatedUser = await userServices.deleteAvatar(userId);
+
+      res.cookie("currentUser", JSON.stringify(updatedUser), {
+        ...getCookieOptions(false),
+        maxAge: 30 * 24 * 3600 * 1000,
+      });
+
+      return res.json({ user: updatedUser });
+    } catch (e) {
+      next(e);
+    }
+  }
+
   async changePassword(req, res, next) {
     try {
       const userId = req.user?.id;
