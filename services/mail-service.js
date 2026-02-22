@@ -2,10 +2,11 @@ const nodemailer = require("nodemailer");
 
 class MailService {
   constructor() {
+    const port = Number(process.env.SMTP_PORT || 587);
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: false,
+      port,
+      secure: port === 465,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD,
@@ -14,7 +15,7 @@ class MailService {
   }
 
   async sendVerificationCode(to, code) {
-    await this.transporter.sendMail({
+    const info = await this.transporter.sendMail({
       from: process.env.SMTP_USER,
       to,
       subject: "Waynix: Email tasdiqlash kodi",
@@ -28,10 +29,18 @@ class MailService {
         </div>
       `,
     });
+
+    if (!info.accepted?.length) {
+      throw new Error("Verification email was not accepted by SMTP provider");
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[mail] verification code for ${to}: ${code}`);
+    }
   }
 
   async sendNewsEmail(to, subject, content) {
-    await this.transporter.sendMail({
+    const info = await this.transporter.sendMail({
       from: process.env.SMTP_USER,
       to,
       subject,
@@ -43,6 +52,10 @@ class MailService {
         </div>
       `,
     });
+
+    if (!info.accepted?.length) {
+      throw new Error("Newsletter email was not accepted by SMTP provider");
+    }
   }
 }
 
