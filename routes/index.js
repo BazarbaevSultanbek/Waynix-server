@@ -11,7 +11,7 @@ const upload = require("../middlewares/upload");
 const router = express.Router();
 
 
-const healthRouter = require("./health");
+const healthRouter = require("./healths");
 
 router.use("/", healthRouter);
 

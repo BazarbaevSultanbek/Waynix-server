@@ -6,10 +6,10 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const path = require("path");
 
-const router = require("../src/routes");
-const errorMiddleware = require("../src/middlewares/error-middleware");
-const UserModel = require("../src/models/user-model");
-const { adminJs, router: adminRouter } = require("../src/admin");
+const router = require("./routes");
+const errorMiddleware = require("./middlewares/error-middleware");
+const UserModel = require("./models/user-model");
+const { adminJs, router: adminRouter } = require("./admin");
 
 mongoose.set("bufferCommands", false);
 
@@ -122,7 +122,9 @@ app.get("/api/version", (req, res) => {
 });
 
 /* ===================== ROUTES ===================== */
-app.use(adminJs.options.rootPath, adminRouter);
+if (!process.env.VERCEL) {
+  app.use(adminJs.options.rootPath, adminRouter);
+}
 app.use("/api", router);
 app.use(errorMiddleware);
 
