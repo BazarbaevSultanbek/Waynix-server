@@ -41,7 +41,7 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 /* ===================== DB CONNECTION ===================== */
 let isDbConnected = false;
-let isConnecting = false;
+let connectPromise = null;
 
 const ensureDefaultAdmin = async () => {
   const adminEmail = (process.env.ADMIN_EMAIL || "admin@gmail.com")
@@ -69,32 +69,26 @@ const ensureDefaultAdmin = async () => {
 };
 
 const ensureDb = async () => {
-  if (isDbConnected || isConnecting) return;
+  if (isDbConnected) return;
+  if (connectPromise) return connectPromise;
   if (!process.env.DB_URI) throw new Error("DB_URI missing");
 
-  try {
-    isConnecting = true;
-    await mongoose.connect(process.env.DB_URI, {
+  connectPromise = mongoose
+    .connect(process.env.DB_URI, {
       dbName: process.env.DB_NAME || "Waynix",
       serverSelectionTimeoutMS: 30000,
+    })
+    .then(async () => {
+      await ensureDefaultAdmin();
+      isDbConnected = true;
+      console.log("✅ MongoDB connected");
+    })
+    .finally(() => {
+      connectPromise = null;
     });
-    await ensureDefaultAdmin();
-    isDbConnected = true;
-    console.log("✅ MongoDB connected");
-  } finally {
-    isConnecting = false;
-  }
-};
 
-/* Ensure DB before every request */
-app.use(async (req, res, next) => {
-  try {
-    await ensureDb();
-    next();
-  } catch (e) {
-    next(e);
-  }
-});
+  return connectPromise;
+};
 
 /* ===================== HEALTH ROUTES ===================== */
 app.get("/api/health", (req, res) => {
@@ -103,6 +97,7 @@ app.get("/api/health", (req, res) => {
 
 app.get("/api/health-db", async (req, res) => {
   try {
+    await ensureDb();
     const ping = await mongoose.connection.db.admin().ping();
     res.json({
       ok: true,
@@ -119,6 +114,24 @@ app.get("/api/health-db", async (req, res) => {
 
 app.get("/api/version", (req, res) => {
   res.json({ version: "waynix-server-v2" });
+});
+
+/* Ensure DB before protected/app requests */
+app.use(async (req, res, next) => {
+  // Allow non-DB diagnostics even when DB is down
+  if (
+    req.path === "/api/health" ||
+    req.path === "/api/version" ||
+    req.path === "/api/health-db"
+  ) {
+    return next();
+  }
+  try {
+    await ensureDb();
+    next();
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* ===================== ROUTES ===================== */
