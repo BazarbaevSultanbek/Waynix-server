@@ -3,29 +3,24 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
-const path = require("path");
 const bcrypt = require("bcrypt");
+const path = require("path");
 
-const router = require("./routes/index");
-const { adminJs, router: adminRouter } = require("./admin");
-const socket = require("./controllers/socket-controller");
-const errorMiddleware = require("./middlewares/error-middleware");
-const UserModel = require("./models/user-model");
+const router = require("../src/routes");
+const errorMiddleware = require("../src/middlewares/error-middleware");
+const UserModel = require("../src/models/user-model");
+const { adminJs, router: adminRouter } = require("../src/admin");
 
 mongoose.set("bufferCommands", false);
 
-const PORT = process.env.PORT || 8001;
 const app = express();
 
+/* ===================== CORS ===================== */
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://waynix.vercel.app",
 ];
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
 app.use(
   cors({
@@ -35,16 +30,16 @@ app.use(
       return callback(new Error("CORS not allowed"));
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-app.options("*", cors());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+/* ===================== MIDDLEWARE ===================== */
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
-socket();
-
+/* ===================== DB CONNECTION ===================== */
 let isDbConnected = false;
 let isConnecting = false;
 
@@ -58,7 +53,6 @@ const ensureDefaultAdmin = async () => {
   if (existingAdmin) {
     existingAdmin.role = "admin";
     existingAdmin.emailVerified = true;
-    existingAdmin.newsletterSubscribed = false;
     await existingAdmin.save();
     return;
   }
@@ -71,19 +65,12 @@ const ensureDefaultAdmin = async () => {
     role: "admin",
     isActive: true,
     emailVerified: true,
-    newsletterSubscribed: false,
-    bio: "Default system administrator account",
   });
-  console.log(`Default admin created: ${adminEmail}`);
 };
 
 const ensureDb = async () => {
-  if (isDbConnected) return;
-  if (isConnecting) return;
-
-  if (!process.env.DB_URI) {
-    throw new Error("DB_URI is missing in environment variables");
-  }
+  if (isDbConnected || isConnecting) return;
+  if (!process.env.DB_URI) throw new Error("DB_URI missing");
 
   try {
     isConnecting = true;
@@ -93,12 +80,13 @@ const ensureDb = async () => {
     });
     await ensureDefaultAdmin();
     isDbConnected = true;
-    console.log("MongoDB connected");
+    console.log("✅ MongoDB connected");
   } finally {
     isConnecting = false;
   }
 };
 
+/* Ensure DB before every request */
 app.use(async (req, res, next) => {
   try {
     await ensureDb();
@@ -108,13 +96,13 @@ app.use(async (req, res, next) => {
   }
 });
 
+/* ===================== HEALTH ROUTES ===================== */
 app.get("/api/health", (req, res) => {
-  res.json({ ok: true, env: process.env.NODE_ENV || "unknown" });
+  res.json({ ok: true });
 });
 
 app.get("/api/health-db", async (req, res) => {
   try {
-    await ensureDb();
     const ping = await mongoose.connection.db.admin().ping();
     res.json({
       ok: true,
@@ -125,7 +113,6 @@ app.get("/api/health-db", async (req, res) => {
     res.status(500).json({
       ok: false,
       message: e.message,
-      readyState: mongoose.connection.readyState,
     });
   }
 });
@@ -134,20 +121,10 @@ app.get("/api/version", (req, res) => {
   res.json({ version: "waynix-server-v2" });
 });
 
+/* ===================== ROUTES ===================== */
 app.use(adminJs.options.rootPath, adminRouter);
 app.use("/api", router);
 app.use(errorMiddleware);
 
-if (!process.env.VERCEL) {
-  ensureDb()
-    .then(() => {
-      app.listen(PORT, () => {
-        console.log(`Server started on port ${PORT}!`);
-      });
-    })
-    .catch((e) => {
-      console.error("Failed to start server:", e);
-    });
-}
-
+/* ===================== EXPORT (CRITICAL) ===================== */
 module.exports = app;

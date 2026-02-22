@@ -11,6 +11,9 @@ const upload = require("../middlewares/upload");
 const router = express.Router();
 
 
+const healthRouter = require("./health");
+
+router.use("/", healthRouter);
 
 router.post(
   "/register",
