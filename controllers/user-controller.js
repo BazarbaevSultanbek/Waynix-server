@@ -115,19 +115,26 @@ class UserController {
   async updateProfile(req, res, next) {
     try {
       const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
       const updatedUser = await userServices.updateProfile(userId, req.body);
-      if (!updatedUser) return res.status(400).json({ error: "User not found" });
+      if (!updatedUser) {
+        return res.status(400).json({ error: "User not found" });
+      }
+
+      // Keep currentUser cookie in sync
       res.cookie("currentUser", JSON.stringify(updatedUser), {
         ...getCookieOptions(false),
         maxAge: 30 * 24 * 3600 * 1000,
       });
-      return res.status(200).json({ user: updatedUser });
+
+      return res.json({ user: updatedUser });
     } catch (e) {
       next(e);
     }
   }
-
   async changePassword(req, res, next) {
     try {
       const userId = req.user?.id;

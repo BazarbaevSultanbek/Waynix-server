@@ -1,25 +1,31 @@
-const ApiError = require("../exceptions/api-error");
-const tokenService = require("../services/token-service");
+const jwt = require("jsonwebtoken");
 
 module.exports = function (req, res, next) {
-    try {
-        const authorizationHeader = req.headers.authorization;
-        if (!authorizationHeader) {
-            return next(ApiError.UnauthorizedError());
-        }
-        const accessToken = authorizationHeader.split(" ")[1];
-        // console.log(accessToken)
-        if (!accessToken) {
-            return next(ApiError.UnauthorizedError());
-        }
-        const userData = tokenService.validateAccessToken(accessToken);
-        if (!userData) {
-            return next(ApiError.UnauthorizedError());
-        }
-        req.user = userData;
-        next();
+  try {
+    let token;
 
-    } catch (e) {
-        return next(ApiError.UnauthorizedError());
+    // 1️⃣ Try cookie first (PRIMARY)
+    if (req.cookies?.accessToken) {
+      token = req.cookies.accessToken;
     }
-}
+
+    // 2️⃣ Fallback to Authorization header
+    if (!token && req.headers.authorization) {
+      const parts = req.headers.authorization.split(" ");
+      if (parts.length === 2 && parts[0] === "Bearer") {
+        token = parts[1];
+      }
+    }
+
+    if (!token) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userData = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    req.user = userData;
+
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+};
