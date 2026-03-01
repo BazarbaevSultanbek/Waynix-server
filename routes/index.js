@@ -10,6 +10,15 @@ const upload = require("../middlewares/upload");
 
 const router = express.Router();
 
+// Public diagnostics for deployment checks
+router.get("/health", (req, res) => {
+  res.json({ ok: true, source: "routes/index.js" });
+});
+
+router.get("/version", (req, res) => {
+  res.json({ version: "routes-v1" });
+});
+
 
 const healthRouter = require("./healths");
 
