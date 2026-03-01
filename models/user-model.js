@@ -39,6 +39,28 @@ const UserSchema = new Schema(
       ],
       default: [],
     },
+    notifications: {
+      type: [
+        {
+          id: { type: String, required: true },
+          title: { type: String, default: "" },
+          text: { type: String, default: "" },
+          type: {
+            type: String,
+            enum: ["system", "place_submission", "place_review"],
+            default: "system",
+          },
+          read: { type: Boolean, default: false },
+          meta: { type: Schema.Types.Mixed, default: {} },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    myPlaces: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Place" }],
+      default: [],
+    },
     settings: {
       language: {
         type: String,

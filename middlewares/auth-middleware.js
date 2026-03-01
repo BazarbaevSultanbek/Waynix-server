@@ -1,4 +1,6 @@
 const jwt = require("jsonwebtoken");
+const ACCESS_SECRET =
+  process.env.JWT_ACCESS_SECRET || "jwt_access_dev_fallback";
 
 module.exports = function (req, res, next) {
   try {
@@ -21,7 +23,7 @@ module.exports = function (req, res, next) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const userData = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    const userData = jwt.verify(token, ACCESS_SECRET);
     req.user = userData;
 
     next();

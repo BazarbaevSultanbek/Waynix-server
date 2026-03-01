@@ -3,6 +3,7 @@ const userController = require("../controllers/user-controller");
 const postsController = require("../controllers/posts-controller");
 const commentsController = require("../controllers/comments-controller");
 const notificationController = require("../controllers/notification-controller");
+const placeController = require("../controllers/place-controller");
 const { body } = require("express-validator");
 const authMiddleware = require("../middlewares/auth-middleware");
 const adminMiddleware = require("../middlewares/admin-middleware");
@@ -91,6 +92,27 @@ router.post(
   "/delete-notification",
   authMiddleware,
   notificationController.deleteNotification,
+);
+
+router.post(
+  "/places",
+  authMiddleware,
+  upload.array("images", 5),
+  placeController.submit,
+);
+router.get("/places/public", placeController.getApproved);
+router.get("/places/mine", authMiddleware, placeController.getMine);
+router.get(
+  "/places/admin/pending",
+  authMiddleware,
+  adminMiddleware,
+  placeController.getPending,
+);
+router.patch(
+  "/places/:id/moderate",
+  authMiddleware,
+  adminMiddleware,
+  placeController.moderate,
 );
 
 module.exports = router;

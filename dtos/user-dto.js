@@ -19,6 +19,8 @@ module.exports = class UserDto {
   emailVerified;
   isGit;
   stats;
+  myPlaces;
+  notifications;
 
   constructor(user) {
     const obj = user || {};
@@ -42,5 +44,7 @@ module.exports = class UserDto {
     this.emailVerified = Boolean(obj.emailVerified);
     this.isGit = Boolean(obj.isGit);
     this.stats = obj.stats || {};
+    this.myPlaces = obj.myPlaces || [];
+    this.notifications = obj.notifications || [];
   }
 };
