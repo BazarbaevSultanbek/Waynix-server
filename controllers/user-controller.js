@@ -58,8 +58,8 @@ class UserController {
   async resendVerification(req, res, next) {
     try {
       const { email } = req.body;
-      await userServices.resendVerificationCode(email);
-      return res.json({ message: "Verification code sent" });
+      const result = await userServices.resendVerificationCode(email);
+      return res.json({ message: "Verification code sent", ...result });
     } catch (e) {
       next(e);
     }

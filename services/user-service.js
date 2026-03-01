@@ -68,12 +68,24 @@ class UserService {
       verificationCodeExpiresAt,
     });
 
-    await mailService.sendVerificationCode(normalizedEmail, verificationCode);
+    let verificationDelivery = "email";
+    try {
+      await mailService.sendVerificationCode(normalizedEmail, verificationCode);
+    } catch (e) {
+      verificationDelivery = "fallback";
+      console.error("sendVerificationCode failed:", e.message);
+    }
 
     const userDto = new UserDto(user);
     const tokens = tokenServices.generateTokens({ ...userDto });
     await tokenServices.saveToken(userDto.id, tokens.refreshToken);
-    return { ...tokens, user: userDto };
+    return {
+      ...tokens,
+      user: userDto,
+      verificationDelivery,
+      verificationCode:
+        verificationDelivery === "fallback" ? verificationCode : undefined,
+    };
   }
 
   async verifyEmailCode(email, code) {
@@ -113,8 +125,18 @@ class UserService {
     user.verificationCode = verificationCode;
     user.verificationCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
-    await mailService.sendVerificationCode(normalizedEmail, verificationCode);
-    return true;
+    let verificationDelivery = "email";
+    try {
+      await mailService.sendVerificationCode(normalizedEmail, verificationCode);
+    } catch (e) {
+      verificationDelivery = "fallback";
+      console.error("resendVerificationCode failed:", e.message);
+    }
+    return {
+      verificationDelivery,
+      verificationCode:
+        verificationDelivery === "fallback" ? verificationCode : undefined,
+    };
   }
 
   async login(email, password) {
