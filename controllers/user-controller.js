@@ -197,6 +197,17 @@ class UserController {
       next(e);
     }
   }
+
+  async me(req, res, next) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const user = await userServices.getById(userId);
+      return res.json({ user });
+    } catch (e) {
+      next(e);
+    }
+  }
 }
 
 module.exports = new UserController();

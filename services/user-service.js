@@ -283,6 +283,12 @@ class UserService {
   async getAllUsers(id) {
     return UserModel.find({ _id: { $ne: id } });
   }
+
+  async getById(id) {
+    const user = await UserModel.findById(id);
+    if (!user) throw ApiError.BadRequest("User not found");
+    return new UserDto(user);
+  }
 }
 
 module.exports = new UserService();

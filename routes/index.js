@@ -64,6 +64,7 @@ router.post(
 router.post("/login", userController.login);
 router.post("/logout", userController.logout);
 router.get("/refresh", userController.refresh);
+router.get("/me", authMiddleware, userController.me);
 router.post(
   "/add-avatar",
   authMiddleware,
