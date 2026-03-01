@@ -23,6 +23,12 @@ const allowedOrigins = [
   "https://waynix.vercel.app",
 ];
 
+if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
+  console.warn(
+    "JWT secrets are missing in environment. Using fallback secrets. Set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET in Vercel env."
+  );
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

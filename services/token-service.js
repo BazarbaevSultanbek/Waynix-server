@@ -1,11 +1,15 @@
 const jwt = require("jsonwebtoken");
 const tokenModal = require("../models/token-model");
 
+const ACCESS_SECRET =
+  process.env.JWT_ACCESS_SECRET || "waynix_access_secret_fallback";
+const REFRESH_SECRET =
+  process.env.JWT_REFRESH_SECRET || "waynix_refresh_secret_fallback";
 
 class TokenService{
     generateTokens(payload){
-        const accessToken = jwt.sign(payload, process.env.JWT_ACCESS_SECRET, {expiresIn: "30m"})
-        const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {expiresIn: "30d"})
+        const accessToken = jwt.sign(payload, ACCESS_SECRET, {expiresIn: "30m"})
+        const refreshToken = jwt.sign(payload, REFRESH_SECRET, {expiresIn: "30d"})
         return{
             accessToken,
             refreshToken
@@ -14,7 +18,7 @@ class TokenService{
 
     async validateAccessToken(token){
         try{
-            const userData = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+            const userData = jwt.verify(token, ACCESS_SECRET);
             return userData
         }catch (e){
             return null;
@@ -23,7 +27,7 @@ class TokenService{
 
     async validateRefreshToken(token){
         try{
-            const userData = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+            const userData = jwt.verify(token, REFRESH_SECRET);
             return userData
         }catch (e){
             return null;
