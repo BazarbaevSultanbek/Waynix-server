@@ -31,10 +31,7 @@ class UserController {
 
       res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
       res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
-      res.cookie("currentUser", JSON.stringify(userData.user), {
-        ...getCookieOptions(false),
-        maxAge: 30 * 24 * 3600 * 1000,
-      });
+      res.clearCookie("currentUser", getCookieOptions(false));
       return res.json({
         ...userData,
         message:
@@ -72,10 +69,7 @@ class UserController {
 
       res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
       res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
-      res.cookie("currentUser", JSON.stringify(userData.user), {
-        ...getCookieOptions(false),
-        maxAge: 30 * 24 * 3600 * 1000,
-      });
+      res.clearCookie("currentUser", getCookieOptions(false));
       return res.json(userData);
     } catch (e) {
       next(e);
@@ -104,10 +98,7 @@ class UserController {
 
       res.cookie("accessToken", userData.accessToken, getCookieOptions(false));
       res.cookie("refreshToken", userData.refreshToken, getCookieOptions(true));
-      res.cookie("currentUser", JSON.stringify(userData.user), {
-        ...getCookieOptions(false),
-        maxAge: 30 * 24 * 3600 * 1000,
-      });
+      res.clearCookie("currentUser", getCookieOptions(false));
       return res.json(userData);
     } catch (e) {
       next(e);
@@ -123,10 +114,7 @@ class UserController {
       // Vercel serverless filesystem is read-only. Store avatar as data URL.
       const avatarUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
       const updatedUser = await userServices.addAvatar(userId, avatarUrl);
-      res.cookie("currentUser", JSON.stringify(updatedUser), {
-        ...getCookieOptions(false),
-        maxAge: 30 * 24 * 3600 * 1000,
-      });
+      res.clearCookie("currentUser", getCookieOptions(false));
       return res.json({ user: updatedUser });
     } catch (e) {
       next(e);
@@ -139,10 +127,7 @@ class UserController {
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const updatedUser = await userServices.updateProfile(userId, req.body);
-      res.cookie("currentUser", JSON.stringify(updatedUser), {
-        ...getCookieOptions(false),
-        maxAge: 30 * 24 * 3600 * 1000,
-      });
+      res.clearCookie("currentUser", getCookieOptions(false));
       return res.json({ user: updatedUser });
     } catch (e) {
       next(e);
@@ -155,11 +140,7 @@ class UserController {
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const updatedUser = await userServices.deleteAvatar(userId);
-
-      res.cookie("currentUser", JSON.stringify(updatedUser), {
-        ...getCookieOptions(false),
-        maxAge: 30 * 24 * 3600 * 1000,
-      });
+      res.clearCookie("currentUser", getCookieOptions(false));
 
       return res.json({ user: updatedUser });
     } catch (e) {
