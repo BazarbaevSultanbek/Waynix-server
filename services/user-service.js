@@ -28,6 +28,14 @@ function generateVerificationCode() {
 }
 
 class UserService {
+  buildTokenPayload(userDto) {
+    return {
+      id: userDto.id,
+      email: userDto.email,
+      role: userDto.role || "user",
+    };
+  }
+
   async register(payload) {
     const { name, email, password, phone_number, isGit } = payload;
     const normalizedEmail = String(email || "")
@@ -77,7 +85,7 @@ class UserService {
     }
 
     const userDto = new UserDto(user);
-    const tokens = tokenServices.generateTokens({ ...userDto });
+    const tokens = tokenServices.generateTokens(this.buildTokenPayload(userDto));
     await tokenServices.saveToken(userDto.id, tokens.refreshToken);
     const shouldExposeCode = process.env.NODE_ENV !== "production";
     return {
@@ -165,7 +173,7 @@ class UserService {
     }
 
     const userDto = new UserDto(user);
-    const tokens = tokenServices.generateTokens({ ...userDto });
+    const tokens = tokenServices.generateTokens(this.buildTokenPayload(userDto));
     await tokenServices.saveToken(userDto.id, tokens.refreshToken);
     return { ...tokens, user: userDto };
   }
@@ -187,7 +195,7 @@ class UserService {
 
     const user = await UserModel.findById(userData.id);
     const userDto = new UserDto(user);
-    const tokens = tokenServices.generateTokens({ ...userDto });
+    const tokens = tokenServices.generateTokens(this.buildTokenPayload(userDto));
     await tokenServices.saveToken(userDto.id, tokens.refreshToken);
     return { ...tokens, user: userDto };
   }
