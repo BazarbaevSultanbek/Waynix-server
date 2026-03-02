@@ -1,6 +1,7 @@
 const { validationResult } = require("express-validator");
 const ApiError = require("../exceptions/api-error");
 const userServices = require("../services/user-service");
+const googleDriveService = require("../services/google-drive-service");
 
 const getCookieOptions = (isRefresh = false) => {
   const isProd = process.env.NODE_ENV === "production";
@@ -111,8 +112,12 @@ class UserController {
         return res.status(400).json({ message: "Avatar file is required" });
       }
       const userId = req.user.id;
-      // Vercel serverless filesystem is read-only. Store avatar as data URL.
-      const avatarUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      const uploaded = await googleDriveService.uploadBuffer({
+        buffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+        fileName: `waynix-avatar-${userId}-${Date.now()}`,
+      });
+      const avatarUrl = uploaded.url;
       const updatedUser = await userServices.addAvatar(userId, avatarUrl);
       res.clearCookie("currentUser", getCookieOptions(false));
       return res.json({ user: updatedUser });

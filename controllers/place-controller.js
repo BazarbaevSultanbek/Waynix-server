@@ -1,4 +1,5 @@
 const placeService = require("../services/place-service");
+const googleDriveService = require("../services/google-drive-service");
 
 class PlaceController {
   async submit(req, res, next) {
@@ -7,7 +8,16 @@ class PlaceController {
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const uploadedFiles = Array.isArray(req.files) ? req.files : [];
-      const uploadedImages = uploadedFiles.map((file) => `/uploads/${file.filename}`);
+      const uploadedImages = await Promise.all(
+        uploadedFiles.map(async (file) => {
+          const uploaded = await googleDriveService.uploadBuffer({
+            buffer: file.buffer,
+            mimeType: file.mimetype,
+            fileName: `waynix-place-${userId}-${Date.now()}`,
+          });
+          return uploaded.url;
+        }),
+      );
       const bodyImages = Array.isArray(req.body.images)
         ? req.body.images
         : req.body.images
@@ -92,4 +102,3 @@ class PlaceController {
 }
 
 module.exports = new PlaceController();
-
