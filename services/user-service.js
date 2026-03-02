@@ -79,12 +79,15 @@ class UserService {
     const userDto = new UserDto(user);
     const tokens = tokenServices.generateTokens({ ...userDto });
     await tokenServices.saveToken(userDto.id, tokens.refreshToken);
+    const shouldExposeCode = process.env.NODE_ENV !== "production";
     return {
       ...tokens,
       user: userDto,
       verificationDelivery,
       verificationCode:
-        verificationDelivery === "fallback" ? verificationCode : undefined,
+        shouldExposeCode && verificationDelivery === "fallback"
+          ? verificationCode
+          : undefined,
     };
   }
 
@@ -132,10 +135,13 @@ class UserService {
       verificationDelivery = "fallback";
       console.error("resendVerificationCode failed:", e.message);
     }
+    const shouldExposeCode = process.env.NODE_ENV !== "production";
     return {
       verificationDelivery,
       verificationCode:
-        verificationDelivery === "fallback" ? verificationCode : undefined,
+        shouldExposeCode && verificationDelivery === "fallback"
+          ? verificationCode
+          : undefined,
     };
   }
 
