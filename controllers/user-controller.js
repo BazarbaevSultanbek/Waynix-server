@@ -120,7 +120,8 @@ class UserController {
         return res.status(400).json({ message: "Avatar file is required" });
       }
       const userId = req.user.id;
-      const avatarUrl = `/uploads/${req.file.filename}`;
+      // Vercel serverless filesystem is read-only. Store avatar as data URL.
+      const avatarUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
       const updatedUser = await userServices.addAvatar(userId, avatarUrl);
       res.cookie("currentUser", JSON.stringify(updatedUser), {
         ...getCookieOptions(false),

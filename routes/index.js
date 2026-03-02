@@ -8,6 +8,7 @@ const { body } = require("express-validator");
 const authMiddleware = require("../middlewares/auth-middleware");
 const adminMiddleware = require("../middlewares/admin-middleware");
 const upload = require("../middlewares/upload");
+const avatarUpload = require("../middlewares/avatar-upload");
 
 const router = express.Router();
 
@@ -68,7 +69,7 @@ router.get("/me", authMiddleware, userController.me);
 router.post(
   "/add-avatar",
   authMiddleware,
-  upload.single("avatar"),
+  avatarUpload.single("avatar"),
   userController.addAvatar,
 );
 router.delete("/delete-avatar", authMiddleware, userController.deleteAvatar);
