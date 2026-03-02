@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const ACCESS_SECRET =
-  process.env.JWT_ACCESS_SECRET || "jwt_access_dev_fallback";
+  process.env.JWT_ACCESS_SECRET || "waynix_access_secret_fallback";
 
 module.exports = function (req, res, next) {
   try {
