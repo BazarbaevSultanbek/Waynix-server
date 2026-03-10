@@ -108,6 +108,7 @@ class UserController {
 
   async addAvatar(req, res, next) {
     try {
+      return res.status(403).json({ message: "Avatar updates are disabled" });
       if (!req.file) {
         return res.status(400).json({ message: "Avatar file is required" });
       }
@@ -141,6 +142,7 @@ class UserController {
 
   async deleteAvatar(req, res, next) {
     try {
+      return res.status(403).json({ message: "Avatar updates are disabled" });
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 

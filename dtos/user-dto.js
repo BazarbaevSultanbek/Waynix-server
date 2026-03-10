@@ -1,6 +1,7 @@
 module.exports = class UserDto {
   id;
   name;
+  lastName;
   email;
   phone_number;
   avatar;
@@ -26,6 +27,7 @@ module.exports = class UserDto {
     const obj = user || {};
     this.id = obj._id ? String(obj._id) : (obj.id ? String(obj.id) : undefined);
     this.name = obj.name;
+    this.lastName = obj.lastName || "";
     this.email = obj.email;
     this.phone_number = obj.phone_number;
     this.avatar = obj.avatar;

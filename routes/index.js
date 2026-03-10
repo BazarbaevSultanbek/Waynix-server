@@ -8,7 +8,6 @@ const { body } = require("express-validator");
 const authMiddleware = require("../middlewares/auth-middleware");
 const adminMiddleware = require("../middlewares/admin-middleware");
 const upload = require("../middlewares/upload");
-const avatarUpload = require("../middlewares/avatar-upload");
 
 const router = express.Router();
 
@@ -66,13 +65,7 @@ router.post("/login", userController.login);
 router.post("/logout", userController.logout);
 router.get("/refresh", userController.refresh);
 router.get("/me", authMiddleware, userController.me);
-router.post(
-  "/add-avatar",
-  authMiddleware,
-  avatarUpload.single("avatar"),
-  userController.addAvatar,
-);
-router.delete("/delete-avatar", authMiddleware, userController.deleteAvatar);
+// avatar update routes disabled
 
 router.get("/users", authMiddleware, userController.getUsers);
 router.post(

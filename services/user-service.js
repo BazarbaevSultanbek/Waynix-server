@@ -212,31 +212,13 @@ class UserService {
   async updateProfile(id, data) {
     const allowed = {
       name: data.name,
-      email: data.email ? String(data.email).toLowerCase().trim() : undefined,
-      phone_number: data.phone_number,
+      lastName: data.lastName,
       bio: data.bio,
-      location: data.location,
-      socials: data.socials,
-      settings: data.settings
-        ? {
-            language: data.settings.language,
-            fontSize: data.settings.fontSize,
-            notifications: data.settings.notifications,
-          }
-        : undefined,
     };
 
     Object.keys(allowed).forEach((key) => {
       if (allowed[key] === undefined) delete allowed[key];
     });
-
-    if (allowed.email) {
-      const exists = await UserModel.findOne({
-        email: allowed.email,
-        _id: { $ne: id },
-      });
-      if (exists) throw ApiError.BadRequest("Email already in use");
-    }
 
     const updatedUser = await UserModel.findByIdAndUpdate(id, allowed, {
       new: true,
